@@ -1,0 +1,8 @@
+
+ADD_ELXCOMPONENT( CorrespondingPointsEuclideanDistanceStackMetric
+ elxCorrespondingPointsEuclideanDistanceStackMetric.cxx
+ elxCorrespondingPointsEuclideanDistanceStackMetric.h
+ elxCorrespondingPointsEuclideanDistanceStackMetric.hxx
+ itkCorrespondingPointsEuclideanDistancePointStackMetric.h
+ itkCorrespondingPointsEuclideanDistancePointStackMetric.hxx )
+
