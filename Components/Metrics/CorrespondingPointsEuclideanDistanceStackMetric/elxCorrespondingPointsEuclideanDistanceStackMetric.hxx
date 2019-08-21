@@ -107,21 +107,19 @@ void
 CorrespondingPointsEuclideanDistanceStackMetric< TElastix >
 ::BeforeRegistration( void )
 {
+  const unsigned int lastDim = FixedImageDimension - 1;
+
   /** Read and set the fixed pointset. */
   std::string fixedName = this->GetConfiguration()->GetCommandLineArgument( "-fp" );
-  typename PointSetType::Pointer fixedPointSet; // default-constructed (null)
-  const typename ImageType::ConstPointer fixedImage = this->GetElastix()->GetFixedImage();
+  const typename FixedImageType::ConstPointer fixedImage = this->GetElastix()->GetFixedImage();
   const unsigned int nrOfFixedPoints = this->ReadLandmarks(
-    fixedName, fixedPointSet, fixedImage );
-  this->SetFixedPointSet( fixedPointSet );
+    fixedName, this->m_FixedPointSet, fixedImage );
 
   /** Read and set the moving pointset. */
   std::string movingName = this->GetConfiguration()->GetCommandLineArgument( "-mp" );
-  typename PointSetType::Pointer movingPointSet; // default-constructed (null)
-  const typename ImageType::ConstPointer movingImage = this->GetElastix()->GetMovingImage();
+  const typename FixedImageType::ConstPointer movingImage = this->GetElastix()->GetMovingImage();
   const unsigned int nrOfMovingPoints = this->ReadLandmarks(
-    movingName, movingPointSet, movingImage );
-  this->SetMovingPointSet( movingPointSet );
+    movingName, this->m_MovingPointSet, movingImage );
 
   /** Check. */
   if( nrOfFixedPoints != nrOfMovingPoints )
@@ -130,7 +128,6 @@ CorrespondingPointsEuclideanDistanceStackMetric< TElastix >
                        << nrOfFixedPoints << ") does not match that of the moving pointset ("
                        << nrOfMovingPoints << "). The points do not correspond. " );
   }
-
 } // end BeforeRegistration()
 
 
@@ -143,13 +140,13 @@ unsigned int
 CorrespondingPointsEuclideanDistanceStackMetric< TElastix >
 ::ReadLandmarks(
   const std::string & landmarkFileName,
-  typename PointSetType::Pointer & pointSet,
-  const typename ImageType::ConstPointer image )
+  typename PointSetPointer & pointSet,
+  const typename FixedImageType::ConstPointer image )
 {
   /** Typedefs. */
-  typedef typename ImageType::IndexType      IndexType;
-  typedef typename ImageType::IndexValueType IndexValueType;
-  typedef typename ImageType::PointType      PointType;
+  typedef typename FixedImageType::IndexType      IndexType;
+  typedef typename FixedImageType::IndexValueType IndexValueType;
+  typedef typename FixedImageType::PointType      PointType;
   typedef itk::TransformixInputPointFileReader<
     PointSetType >                            PointSetReaderType;
 

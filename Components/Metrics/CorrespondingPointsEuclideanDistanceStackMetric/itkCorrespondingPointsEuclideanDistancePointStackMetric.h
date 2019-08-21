@@ -18,10 +18,11 @@
 #ifndef __itkCorrespondingPointsEuclideanDistancePointStackMetric_h
 #define __itkCorrespondingPointsEuclideanDistancePointStackMetric_h
 
-#include "itkSingleValuedPointSetToPointSetMetric.h"
-#include "itkPoint.h"
+#include "itkAdvancedImageToImageMetric.h"
+//#include "itkSingleValuedPointSetToPointSetMetric.h"
+//#include "itkPoint.h"
 #include "itkPointSet.h"
-#include "itkImage.h"
+//#include "itkImage.h"
 
 namespace itk
 {
@@ -35,16 +36,16 @@ namespace itk
  * \ingroup RegistrationMetrics
  */
 
-template< class TFixedPointSet, class TMovingPointSet >
+template< class TFixedImage, class TMovingImage >
 class CorrespondingPointsEuclideanDistancePointStackMetric :
-  public SingleValuedPointSetToPointSetMetric< TFixedPointSet, TMovingPointSet >
+  public AdvancedImageToImageMetric< TFixedImage, TMovingImage >
 {
 public:
 
   /** Standard class typedefs. */
   typedef CorrespondingPointsEuclideanDistancePointStackMetric Self;
-  typedef SingleValuedPointSetToPointSetMetric<
-    TFixedPointSet, TMovingPointSet >               Superclass;
+  typedef AdvancedImageToImageMetric<
+    TFixedImage, TMovingImage >                   Superclass;
   typedef SmartPointer< Self >       Pointer;
   typedef SmartPointer< const Self > ConstPointer;
 
@@ -53,31 +54,45 @@ public:
 
   /** Run-time type information (and related methods). */
   itkTypeMacro( CorrespondingPointsEuclideanDistancePointStackMetric,
-    SingleValuedPointSetToPointSetMetric );
+    AdvancedImageToImageMetric );
 
-  /** Types transferred from the base class */
+  /** Types transferred from the base classes */
+  typedef typename Superclass::FixedImageIndexType      ImageIndexType;
+  typedef typename Superclass::FixedImageIndexValueType ImageIndexValueType;
+  typedef typename Superclass::FixedImagePointType      ImagePointType;
+  typedef typename itk::ContinuousIndex< CoordinateRepresentationType, FixedImageDimension >
+    ImageContinuousIndexType;
   typedef typename Superclass::TransformType           TransformType;
   typedef typename Superclass::TransformPointer        TransformPointer;
   typedef typename Superclass::TransformParametersType TransformParametersType;
   typedef typename Superclass::TransformJacobianType   TransformJacobianType;
-
-  typedef typename Superclass::MeasureType                MeasureType;
-  typedef typename Superclass::DerivativeType             DerivativeType;
-  typedef typename Superclass::DerivativeValueType        DerivativeValueType;
-  typedef typename Superclass::FixedPointSetType          FixedPointSetType;
-  typedef typename Superclass::MovingPointSetType         MovingPointSetType;
-  typedef typename Superclass::FixedPointSetConstPointer  FixedPointSetConstPointer;
-  typedef typename Superclass::MovingPointSetConstPointer MovingPointSetConstPointer;
-
-  typedef typename Superclass::PointIterator     PointIterator;
-  typedef typename Superclass::PointDataIterator PointDataIterator;
-
-  typedef typename Superclass::InputPointType    InputPointType;
-  typedef typename Superclass::OutputPointType   OutputPointType;
-  typedef typename OutputPointType::CoordRepType CoordRepType;
-  typedef vnl_vector< CoordRepType >             VnlVectorType;
-
+  typedef typename Superclass::InputPointType          InputPointType;
+  typedef typename Superclass::MeasureType             MeasureType;
+  typedef typename Superclass::DerivativeType          DerivativeType;
+  typedef typename Superclass::DerivativeValueType     DerivativeValueType;
   typedef typename Superclass::NonZeroJacobianIndicesType NonZeroJacobianIndicesType;
+  
+  typedef typename ImagePointType::CoordRepType                            CoordRepType;
+  typedef vnl_vector< CoordRepType >                                       VnlVectorType;
+  typedef Matrix< CoordRepType, FixedImageDimension, FixedImageDimension > NdMatrixType;
+  typedef Vector< CoordRepType, FixedImageDimension >                      NdVectorType;
+
+    
+  /** Typedefs for the point sets. Assuming fixed and moving pointsets are of
+      equal type, which implicitly assumes that the fixed and moving image are
+      of the same type.
+  */
+  typedef PointSet< CoordinateRepresentationType,
+    TFixedImage::ImageDimension,
+    DefaultStaticMeshTraits<
+      CoordinateRepresentationType,
+      TFixedImage::ImageDimension,
+      TFixedImage::ImageDimension,
+      CoordinateRepresentationType, CoordinateRepresentationType,
+      CoordinateRepresentationType > >                        PointSetType;
+  typedef typename PointSetType::Pointer                      PointSetPointer;
+  typedef typename PointSetType::ConstPointer                 PointSetConstPointer;
+  typedef typename PointSetType::PointsContainerConstIterator PointConstIterator;
 
   /**  Get the value for single valued optimizers. */
   MeasureType GetValue( const TransformParametersType & parameters ) const override;
@@ -95,11 +110,19 @@ protected:
   CorrespondingPointsEuclideanDistancePointStackMetric();
   ~CorrespondingPointsEuclideanDistancePointStackMetric() override {}
 
+  /** Member variables. */
+  PointSetPointer m_FixedPointSet;
+  PointSetPointer m_MovingPointSet;
+
 private:
 
   CorrespondingPointsEuclideanDistancePointStackMetric( const Self & ); // purposely not implemented
   void operator=( const Self & );                                  // purposely not implemented
 
+  void GetValueAndDerivativeFull( const TransformParametersType & parameters,
+    MeasureType & Value, DerivativeType & Derivative, bool getDerivative ) const;
+
+  bool GetLocalLinearTransform( const ImagePointType & point, NdMatrixType & transform ) const;
 };
 
 } // end namespace itk

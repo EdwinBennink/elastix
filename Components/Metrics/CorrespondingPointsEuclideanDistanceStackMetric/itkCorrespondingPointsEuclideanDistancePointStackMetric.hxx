@@ -20,6 +20,8 @@
 
 #include "itkCorrespondingPointsEuclideanDistancePointStackMetric.h"
 
+
+
 namespace itk
 {
 
@@ -27,95 +29,31 @@ namespace itk
  * ******************* Constructor *******************
  */
 
-template< class TFixedPointSet, class TMovingPointSet >
-CorrespondingPointsEuclideanDistancePointStackMetric< TFixedPointSet, TMovingPointSet >
+template< class TFixedImage, class TMovingImage >
+CorrespondingPointsEuclideanDistancePointStackMetric< TFixedImage, TMovingImage >
 ::CorrespondingPointsEuclideanDistancePointStackMetric()
-{} // end Constructor
+{
+	this->SetUseImageSampler(true);
+	this->SetUseFixedImageLimiter(false);
+	this->SetUseMovingImageLimiter(false);
+
+  this->m_FixedPointSet = NULL;
+  this->m_MovingPointSet = NULL;
+} // end Constructor
 
 /**
  * ******************* GetValue *******************
  */
 
-template< class TFixedPointSet, class TMovingPointSet >
-typename CorrespondingPointsEuclideanDistancePointStackMetric< TFixedPointSet, TMovingPointSet >::MeasureType
-CorrespondingPointsEuclideanDistancePointStackMetric< TFixedPointSet, TMovingPointSet >
+template< class TFixedImage, class TMovingImage >
+typename CorrespondingPointsEuclideanDistancePointStackMetric< TFixedImage, TMovingImage >::MeasureType
+CorrespondingPointsEuclideanDistancePointStackMetric< TFixedImage, TMovingImage >
 ::GetValue( const TransformParametersType & parameters ) const
 {
-  /** Sanity checks. */
-  FixedPointSetConstPointer fixedPointSet = this->GetFixedPointSet();
-  if( !fixedPointSet )
-  {
-    itkExceptionMacro( << "Fixed point set has not been assigned" );
-  }
-
-  MovingPointSetConstPointer movingPointSet = this->GetMovingPointSet();
-  if( !movingPointSet )
-  {
-    itkExceptionMacro( << "Moving point set has not been assigned" );
-  }
-
-  /** Initialize some variables. */
-  this->m_NumberOfPointsCounted = 0;
-  MeasureType     measure = NumericTraits< MeasureType >::Zero;
-  InputPointType  pointB;
-  OutputPointType pointA, mappedPointA, mappedPointB;
-  const unsigned int lastDim = movingPointSet->PointDimension - 1;
-
-  /** Make sure the transform parameters are up to date. */
-  this->SetTransformParameters( parameters );
-
-  /** Create iterators. */
-  PointIterator pointItFixed  = fixedPointSet->GetPoints()->Begin();
-  PointIterator pointItMoving = movingPointSet->GetPoints()->Begin();
-  PointIterator pointEnd      = fixedPointSet->GetPoints()->End();
-
-  /** Loop over the corresponding points. */
-  while( pointItFixed != pointEnd )
-  {
-    /** Get the current corresponding points. */
-    pointA = pointItFixed.Value();
-    pointB = pointItMoving.Value();
-    
-    /** Calculate a linear approximation of the target point. With a single
-        pair of landmarks, the target point should lie right in between point A
-        and point B. */
-    OutputPointType targetPoint = pointA + 0.5 * ( pointB - pointA );
-    targetPoint[lastDim] = pointA[lastDim];
-    mappedPointA = this->m_Transform->TransformPoint( targetPoint );
-    targetPoint[lastDim] = pointB[lastDim];
-    mappedPointB = this->m_Transform->TransformPoint( targetPoint );
-    targetPoint += 0.5 * ( pointB - mappedPointB ) + 0.5 * ( pointA - mappedPointA);
-    
-    /** Now calculate the mappings of the estimated target point onto image A
-        and image B. These points should 1) lie close to the given landmarks
-        and 2) have the same distance vector to the landmarks. */
-    targetPoint[lastDim] = pointA[lastDim];
-    mappedPointA = this->m_Transform->TransformPoint( targetPoint );
-    targetPoint[lastDim] = pointB[lastDim];
-    mappedPointB = this->m_Transform->TransformPoint( targetPoint );
-    
-    /** Since we are not interested in voxel values, we do not need to check if 
-        the points are inside the mask. */
-    bool sampleOk = true;
-    if( sampleOk )
-    {
-      this->m_NumberOfPointsCounted++;
-      
-      /** The error is the difference in distance vector from the mapped target
-          points to the landmarks. */
-      VnlVectorType vecB = ( pointB - mappedPointB ).GetVnlVector();
-      VnlVectorType vecA = ( pointA - mappedPointA ).GetVnlVector();
-      measure += (vecA - vecB).magnitude();
-
-    } // end if sampleOk
-
-    ++pointItFixed;
-    ++pointItMoving;
-
-  } // end loop over all corresponding points
-
-  return measure / this->m_NumberOfPointsCounted;
-
+  MeasureType value = NumericTraits< MeasureType >::Zero;
+  DerivativeType dummyDerivative;
+  this->GetValueAndDerivativeFull( parameters, value, dummyDerivative, false );
+  return value;
 } // end GetValue()
 
 
@@ -123,9 +61,9 @@ CorrespondingPointsEuclideanDistancePointStackMetric< TFixedPointSet, TMovingPoi
  * ******************* GetDerivative *******************
  */
 
-template< class TFixedPointSet, class TMovingPointSet >
+template< class TFixedImage, class TMovingImage >
 void
-CorrespondingPointsEuclideanDistancePointStackMetric< TFixedPointSet, TMovingPointSet >
+CorrespondingPointsEuclideanDistancePointStackMetric< TFixedImage, TMovingImage >
 ::GetDerivative( const TransformParametersType & parameters,
   DerivativeType & derivative ) const
 {
@@ -135,7 +73,7 @@ CorrespondingPointsEuclideanDistancePointStackMetric< TFixedPointSet, TMovingPoi
    * GetValueAndDerivative(), supplying it with a dummy value variable.
    */
   MeasureType dummyvalue = NumericTraits< MeasureType >::Zero;
-  this->GetValueAndDerivative( parameters, dummyvalue, derivative );
+  this->GetValueAndDerivativeFull( parameters, dummyvalue, derivative, true );
 
 } // end GetDerivative()
 
@@ -144,38 +82,58 @@ CorrespondingPointsEuclideanDistancePointStackMetric< TFixedPointSet, TMovingPoi
  * ******************* GetValueAndDerivative *******************
  */
 
-template< class TFixedPointSet, class TMovingPointSet >
+template< class TFixedImage, class TMovingImage >
 void
-CorrespondingPointsEuclideanDistancePointStackMetric< TFixedPointSet, TMovingPointSet >
+CorrespondingPointsEuclideanDistancePointStackMetric< TFixedImage, TMovingImage >
 ::GetValueAndDerivative( const TransformParametersType & parameters,
   MeasureType & value, DerivativeType & derivative ) const
 {
+  this->GetValueAndDerivativeFull( parameters, value, derivative, true );
+} // end GetValueAndDerivative
+
+
+template< class TFixedImage, class TMovingImage >
+void
+CorrespondingPointsEuclideanDistancePointStackMetric< TFixedImage, TMovingImage >
+::GetValueAndDerivativeFull( const TransformParametersType & parameters,
+  MeasureType & value, DerivativeType & derivative, bool getDerivative ) const
+{
   /** Sanity checks. */
-  FixedPointSetConstPointer fixedPointSet = this->GetFixedPointSet();
+  PointSetConstPointer fixedPointSet = this->m_FixedPointSet;
   if( !fixedPointSet )
   {
     itkExceptionMacro( << "Fixed point set has not been assigned" );
   }
 
-  MovingPointSetConstPointer movingPointSet = this->GetMovingPointSet();
+  PointSetConstPointer movingPointSet = this->m_MovingPointSet;
   if( !movingPointSet )
   {
     itkExceptionMacro( << "Moving point set has not been assigned" );
   }
 
   /** Initialize some variables */
-  this->m_NumberOfPointsCounted = 0;
-  MeasureType measure = NumericTraits< MeasureType >::Zero;
-  derivative = DerivativeType( this->GetNumberOfParameters() );
-  derivative.Fill( NumericTraits< DerivativeValueType >::ZeroValue() );
+  value = NumericTraits< MeasureType >::Zero;
+  if( getDerivative )
+  {
+    derivative = DerivativeType( this->GetNumberOfParameters() );
+    derivative.Fill( NumericTraits< DerivativeValueType >::ZeroValue() );
+  }
   NonZeroJacobianIndicesType nzji(
-    this->m_Transform->GetNumberOfNonZeroJacobianIndices() );
+    this->m_AdvancedTransform->GetNumberOfNonZeroJacobianIndices() );
   TransformJacobianType jacobian;
+  const unsigned int lastDim     = FixedImageDimension - 1;
+  const unsigned int lastDimSize = this->GetFixedImage()->GetLargestPossibleRegion().GetSize( lastDim );
 
-  InputPointType  pointB;
-  OutputPointType pointA, mappedPointA, mappedPointB;
-  const unsigned int lastDim = movingPointSet->PointDimension - 1;
-
+  /** Calculate a normalization factor for the derivatives. */
+  ImageRegion< FixedImageDimension > region         = this->GetFixedImage()->GetLargestPossibleRegion();
+  NdVectorType                       spacing        = this->GetFixedImage()->GetSpacing();
+  float                              diagonalSquare = 0.0;
+  for( unsigned int d = 0; d < lastDim; ++d )
+  {
+    diagonalSquare += itk::Math::sqr( spacing[ d ] * region.GetSize( d ) );
+  }
+  const float normalizationFactor = 1.0 / vcl_sqrt( diagonalSquare );
+ 
   /** Call non-thread-safe stuff, such as:
    *   this->SetTransformParameters( parameters );
    *   this->GetImageSampler()->Update();
@@ -191,99 +149,222 @@ CorrespondingPointsEuclideanDistancePointStackMetric< TFixedPointSet, TMovingPoi
    */
   this->BeforeThreadedGetValueAndDerivative( parameters );
 
-  /** Create iterators. */
-  PointIterator pointItFixed  = fixedPointSet->GetPoints()->Begin();
-  PointIterator pointItMoving = movingPointSet->GetPoints()->Begin();
-  PointIterator pointEnd      = fixedPointSet->GetPoints()->End();
+  ImageSampleContainerPointer sampleContainer = this->GetImageSampler()->GetOutput();
+  const unsigned int          sampleSize = sampleContainer->Size();
+  const unsigned int          pointSetSize = fixedPointSet->GetNumberOfPoints();
+  std::vector< float >        aSquaredDistance( pointSetSize, std::numeric_limits< float >::infinity() );
+  std::vector< float >        bSquaredDistance( pointSetSize, std::numeric_limits< float >::infinity() );
+  std::vector< unsigned int > aClosestPoint( pointSetSize );
+  std::vector< unsigned int > bClosestPoint( pointSetSize );
+  std::vector< bool >         aPointOk( pointSetSize, false );
+  std::vector< bool >         bPointOk( pointSetSize, false );
 
-  /** Loop over the corresponding points. */
-  while( pointItFixed != pointEnd )
+  /** Iterate over all landmarks and find the closest sample point. */
+  for( unsigned int s = 0; s < sampleSize; ++s )
   {
-    /** Get the current corresponding points. */
-    pointA = pointItFixed.Value();
-    pointB = pointItMoving.Value();
-    
-    /** Calculate a linear approximation of the target point. With a single
-        pair of landmarks, the target point should lie right in between point A
-        and point B. */
-    OutputPointType targetPoint = pointA + 0.5 * ( pointB - pointA );
-    targetPoint[lastDim] = pointA[lastDim];
-    mappedPointA = this->m_Transform->TransformPoint( targetPoint );
-    targetPoint[lastDim] = pointB[lastDim];
-    mappedPointB = this->m_Transform->TransformPoint( targetPoint );
-    targetPoint += 0.5 * ( pointB - mappedPointB ) + 0.5 * ( pointA - mappedPointA);
-    
-    /** Now calculate the mappings of the estimated target point onto image A
-        and image B. These points should 1) lie close to the given landmarks
-        and 2) have the same distance vector to the landmarks. */
-    targetPoint[lastDim] = pointA[lastDim];
-    mappedPointA = this->m_Transform->TransformPoint( targetPoint );
-    targetPoint[lastDim] = pointB[lastDim];
-    mappedPointB = this->m_Transform->TransformPoint( targetPoint );
+    /** Read fixed coordinates and treat the last dimension as stack index. */
+    ImagePointType pMoving;
+    ImagePointType pFixed = sampleContainer->GetElement( s ).m_ImageCoordinates;
+    pFixed[ lastDim ] = itk::Math::Round< CoordRepType >( pFixed[ lastDim ] );
 
-    /** Since we are not interested in voxel values, we do not need to check if 
-        the points are inside the mask. */
-    bool sampleOk = true;
-    if( sampleOk )
+    /** Map the samplepoint to moving coordinates. */
+    if( !this->TransformPoint( pFixed, pMoving ) )
     {
-      this->m_NumberOfPointsCounted++;
-      
-      /** The error is the difference in distance vector from the mapped target 
-          points to the landmarks. */
-      VnlVectorType vecA = ( pointA - mappedPointA ).GetVnlVector();
-      VnlVectorType vecB = ( pointB - mappedPointB ).GetVnlVector();
-      MeasureType distance  = (vecA - vecB).magnitude();
-      measure += distance;
+      continue;
+    }
 
-      /** Calculate the contributions to the derivatives with respect to each parameter. */
-      if( distance > std::numeric_limits< MeasureType >::epsilon() )
+    for( unsigned int p = 0; p < pointSetSize; ++p )
+    {
+      /** Get the current landmark point. */
+      InputPointType pointA = fixedPointSet->GetPoint( p );
+      InputPointType pointB = movingPointSet->GetPoint( p );
+
+      /** Check if the sample is the closest one yet to point A or B. */
+      if( pMoving[ lastDim ] == pointA[ lastDim ] )
       {
-        /** Get the TransformJacobian dT/dmu for point A. */
-        targetPoint[lastDim] = pointA[lastDim];
-        this->m_Transform->GetJacobian( targetPoint, jacobian, nzji );
-        
-        /** The mapping for point A should move towards the difference between vecA and vecB. */
-        VnlVectorType diff_2 = (vecA - vecB) / distance;
-        for( unsigned int i = 0; i < nzji.size(); ++i )
+        float sd = ( pointA - pMoving ).GetSquaredNorm();
+        if( sd < aSquaredDistance[ p ] )
         {
-          const unsigned int index  = nzji[ i ];
-          VnlVectorType column = jacobian.get_column( i );
-          derivative[ index ] -= dot_product( diff_2, column );
+          aPointOk[ p ] = true;
+          aClosestPoint[ p ] = s;
+          aSquaredDistance[ p ] = sd;
         }
-        
-        /** Get the TransformJacobian dT/dmu for point B. */
-        targetPoint[lastDim] = pointB[lastDim];
-        this->m_Transform->GetJacobian( targetPoint, jacobian, nzji );
-        
-        /** The mapping for point B should move in opposite direction. */
-        for( unsigned int i = 0; i < nzji.size(); ++i )
+      }
+      else if( pMoving[ lastDim ] == pointB[ lastDim ] )
+      {
+        float sd = ( pointB - pMoving ).GetSquaredNorm();
+        if( sd < bSquaredDistance[ p ] )
         {
-          const unsigned int index  = nzji[ i ];
-          VnlVectorType column = jacobian.get_column( i );
-          derivative[ index ] += dot_product( diff_2, column );
+          bPointOk[ p ] = true;
+          bClosestPoint[ p ] = s;
+          bSquaredDistance[ p ] = sd;
         }
-      } // end if distance != 0
-
-    } // end if sampleOk
-
-    ++pointItFixed;
-    ++pointItMoving;
-
-  } // end loop over all corresponding points
-
-  /** Check if enough samples were valid. */
-//   this->CheckNumberOfSamples(
-//     fixedPointSet->GetNumberOfPoints(), this->m_NumberOfPointsCounted );
-
-  /** Copy the measure to value. */
-  value = measure;
-  if( this->m_NumberOfPointsCounted > 0 )
-  {
-    derivative /= (2 * this->m_NumberOfPointsCounted);
-    value       = measure / this->m_NumberOfPointsCounted;
+      }
+    }
   }
 
-} // end GetValueAndDerivative()
+  /** Calculate local transformation matrices and estimate the position of the landmarks
+      in the fixed image. */
+  std::vector< NdVectorType > aFixed( pointSetSize );
+  std::vector< NdVectorType > bFixed( pointSetSize );
+  std::vector< NdMatrixType > aTransformFtoM( pointSetSize );
+  std::vector< NdMatrixType > bTransformFtoM( pointSetSize );
+  for( unsigned int p = 0; p < pointSetSize; ++p )
+  {
+    if( aPointOk[ p ] && bPointOk[ p ] )
+    {
+      /** Calculate local transformation matrix for point A. */
+      ImagePointType pFixed = sampleContainer->GetElement( aClosestPoint[ p ] ).m_ImageCoordinates;
+      aPointOk[ p ] = this->GetLocalLinearTransform( pFixed, aTransformFtoM[ p ] );
+    }
+
+    if( aPointOk[ p ] && bPointOk[ p ] )
+    {
+      /** Transform point A to fixed coordinates. */
+      NdVectorType aMoving = fixedPointSet->GetPoint( p ).GetVectorFromOrigin();
+      aMoving[ lastDim ] = 1.0;
+      aFixed[ p ] = NdMatrixType( aTransformFtoM[ p ].GetInverse() ) * aMoving;
+    }
+
+    if( aPointOk[ p ] && bPointOk[ p ] )
+    {
+      /** Calculate local transformation matrix for point B. */
+      ImagePointType pFixed = sampleContainer->GetElement( bClosestPoint[ p ] ).m_ImageCoordinates;
+      bPointOk[ p ] = this->GetLocalLinearTransform( pFixed, bTransformFtoM[ p ] );
+    }
+
+    if( aPointOk[ p ] && bPointOk[ p ] )
+    {
+      /** Transform point B to fixed coordinates. */
+      NdVectorType bMoving = movingPointSet->GetPoint( p ).GetVectorFromOrigin();
+      bMoving[ lastDim ] = 1.0;
+      bFixed[ p ] = NdMatrixType( bTransformFtoM[ p ].GetInverse() ) * bMoving;
+    }
+  }
+
+  /** Calculate the errors and derivatives for the landmark pairs. */
+  unsigned int numSamplesOk = 0;
+  for( unsigned int p = 0; p < pointSetSize; ++p )
+  {
+    if( aPointOk[ p ] && bPointOk[ p ] )
+    {
+      numSamplesOk++;
+
+      /** The error is given by the squared distance between the mappings of point A
+      and point B in the fixed image. */
+      MeasureType sd = ( aFixed[ p ] - bFixed[ p ] ).GetSquaredNorm();
+      value += sd;
+
+      if( getDerivative )
+      {
+        /** We now need to set the derivative at the projection of point A in fixed
+            coordinates. This derivative vector points from point A in the moving 
+            image to the projection of point B from fixed coordinates to moving 
+            coordinates in point A's local linear space. Vice versa for point B. */
+
+        /** Get the current landmark points. */
+        InputPointType pointA = fixedPointSet->GetPoint( p );
+        InputPointType pointB = movingPointSet->GetPoint( p );
+
+        /** Point A. Divide by sqrt( norm ) to boost small gradients. */
+        NdVectorType aMoving     = pointA.GetVectorFromOrigin();
+        aMoving[ lastDim ]       = 1.0;
+        NdVectorType aTarget     = bFixed[ p ];
+        NdVectorType aDerivative = ( aTransformFtoM[ p ] * aTarget - aMoving ) * normalizationFactor;
+        float        norm = aDerivative.GetNorm();
+        if( norm > std::numeric_limits< MeasureType >::epsilon() )
+        {
+          aDerivative /= vcl_sqrt( norm );
+
+          ImagePointType pFixed = ImagePointType( aFixed[ p ] );
+          pFixed[ lastDim ] = itk::Math::Round< CoordRepType >( pointA[ lastDim ] );
+          this->m_AdvancedTransform->GetJacobian( pFixed, jacobian, nzji );
+
+          for( unsigned int i = 0; i < nzji.size(); ++i )
+          {
+            const unsigned int index = nzji[ i ];
+            VnlVectorType column = jacobian.get_column( i );
+            derivative[ index ] += dot_product( aDerivative.GetVnlVector(), column );
+          }
+        }
+
+        /** Point B. Divide by sqrt( norm ) to boost small gradients. */
+        NdVectorType bMoving     = pointB.GetVectorFromOrigin();
+        bMoving[ lastDim ]       = 1.0;
+        NdVectorType bTarget     = aFixed[ p ];
+        NdVectorType bDerivative = ( bTransformFtoM[ p ] * bTarget - bMoving ) * normalizationFactor;
+        norm                     = bDerivative.GetNorm();
+        if( norm > std::numeric_limits< MeasureType >::epsilon() )
+        {
+          bDerivative /= vcl_sqrt( norm );
+
+          ImagePointType pFixed = ImagePointType( bFixed[ p ] );
+          pFixed[ lastDim ] = itk::Math::Round< CoordRepType >( pointB[ lastDim ] );
+          this->m_AdvancedTransform->GetJacobian( pFixed, jacobian, nzji );
+
+          for( unsigned int i = 0; i < nzji.size(); ++i )
+          {
+            const unsigned int index = nzji[ i ];
+            VnlVectorType column = jacobian.get_column( i );
+            derivative[ index ] += dot_product( bDerivative.GetVnlVector(), column );
+          }
+        }
+      }
+    }
+  }
+
+  /** Normalize the number of samples and the derivative. */
+  value /= numSamplesOk;
+  if( getDerivative )
+  {
+    derivative /= numSamplesOk;
+  }
+
+} // end GetValueAndDerivativeFull()
+
+
+template< class TFixedImage, class TMovingImage >
+bool
+CorrespondingPointsEuclideanDistancePointStackMetric< TFixedImage, TMovingImage >
+::GetLocalLinearTransform( const ImagePointType & point, NdMatrixType & transform ) const
+{
+  bool               pointOk = true;
+  const unsigned int lastDim = FixedImageDimension - 1;
+  const NdVectorType spacing = this->GetFixedImage()->GetSpacing();
+  NdMatrixType       mFixed, mMoving;
+
+  /** Get the fixed and moving image coordinates of nd points at 0.5 pixel spacing
+      from the given point and use these to calculate a local transformation
+      matrix. Break the for-loop if a transformation to moving coordinates failed. */
+  for( unsigned int d = 0; d < FixedImageDimension && pointOk; ++d )
+  {
+    ImagePointType pFixed = point;
+    ImagePointType pMoving;
+
+    pFixed[ lastDim ] = itk::Math::Round< CoordRepType >( pFixed[ lastDim ] );
+    if( d > 0 ) {
+      pFixed[ d - 1 ] += spacing[ d - 1 ];
+    }
+    pointOk = this->TransformPoint( pFixed, pMoving );
+
+    /** Add the coordinates of the fixed and moving image points to the matrices and
+        set the last column to 1 (translation part of the transformation matrix). */
+    for( unsigned int c = 0; c < FixedImageDimension; ++c )
+    {
+      mFixed( d, c ) = pFixed[ c ];
+      mMoving( d, c ) = pMoving[ c ];
+    }
+    mFixed( d, lastDim ) = 1.0;
+    mMoving( d, lastDim ) = 1.0;
+  }
+
+  if( pointOk )
+  {
+    transform = ( NdMatrixType( mFixed.GetInverse() ) * mMoving ).GetTranspose();
+  }
+
+  return pointOk;
+}
 
 
 } // end namespace itk

@@ -40,8 +40,8 @@ template< class TElastix >
 class CorrespondingPointsEuclideanDistanceStackMetric :
   public
   itk::CorrespondingPointsEuclideanDistancePointStackMetric<
-  typename MetricBase< TElastix >::FixedPointSetType,
-  typename MetricBase< TElastix >::MovingPointSetType >,
+    typename MetricBase< TElastix >::FixedImageType,
+    typename MetricBase< TElastix >::MovingImageType >,
   public MetricBase< TElastix >
 {
 public:
@@ -49,8 +49,8 @@ public:
   /** Standard ITK-stuff. */
   typedef CorrespondingPointsEuclideanDistanceStackMetric Self;
   typedef itk::CorrespondingPointsEuclideanDistancePointStackMetric<
-    typename MetricBase< TElastix >::FixedPointSetType,
-    typename MetricBase< TElastix >::MovingPointSetType > Superclass1;
+    typename MetricBase< TElastix >::FixedImageType,
+    typename MetricBase< TElastix >::MovingImageType > Superclass1;
   typedef MetricBase< TElastix >          Superclass2;
   typedef itk::SmartPointer< Self >       Pointer;
   typedef itk::SmartPointer< const Self > ConstPointer;
@@ -70,21 +70,20 @@ public:
 
   /** Typedefs from the superclass. */
   typedef typename Superclass1::CoordinateRepresentationType CoordinateRepresentationType;
-  typedef typename Superclass1::FixedPointSetType            FixedPointSetType;
-  typedef typename Superclass1::FixedPointSetConstPointer    FixedPointSetConstPointer;
-  typedef typename Superclass1::MovingPointSetType           MovingPointSetType;
-  typedef typename Superclass1::MovingPointSetConstPointer   MovingPointSetConstPointer;
+  typedef typename Superclass1::PointSetType            PointSetType;
+  typedef typename Superclass1::PointSetPointer         PointSetPointer;
+  typedef typename Superclass1::PointSetConstPointer    PointSetConstPointer;
 
-//  typedef typename Superclass1::FixedImageRegionType       FixedImageRegionType;
   typedef typename Superclass1::TransformType           TransformType;
   typedef typename Superclass1::TransformPointer        TransformPointer;
   typedef typename Superclass1::InputPointType          InputPointType;
   typedef typename Superclass1::OutputPointType         OutputPointType;
   typedef typename Superclass1::TransformParametersType TransformParametersType;
   typedef typename Superclass1::TransformJacobianType   TransformJacobianType;
-//  typedef typename Superclass1::RealType                   RealType;
+  typedef typename Superclass1::FixedImageType         FixedImageType;
   typedef typename Superclass1::FixedImageMaskType     FixedImageMaskType;
   typedef typename Superclass1::FixedImageMaskPointer  FixedImageMaskPointer;
+  typedef typename Superclass1::MovingImageType        MovingImageType;
   typedef typename Superclass1::MovingImageMaskType    MovingImageMaskType;
   typedef typename Superclass1::MovingImageMaskPointer MovingImageMaskPointer;
   typedef typename Superclass1::MeasureType            MeasureType;
@@ -99,8 +98,6 @@ public:
   typedef typename Superclass2::RegistrationType     RegistrationType;
   typedef typename Superclass2::RegistrationPointer  RegistrationPointer;
   typedef typename Superclass2::ITKBaseType          ITKBaseType;
-  typedef typename Superclass2::FixedImageType       FixedImageType;
-  typedef typename Superclass2::MovingImageType      MovingImageType;
 
   /** The fixed image dimension. */
   itkStaticConstMacro( FixedImageDimension, unsigned int,
@@ -109,12 +106,6 @@ public:
   /** The moving image dimension. */
   itkStaticConstMacro( MovingImageDimension, unsigned int,
     MovingImageType::ImageDimension );
-
-  /** Assuming fixed and moving pointsets are of equal type, which implicitly
-   * assumes that the fixed and moving image are of the same type.
-   */
-  typedef FixedPointSetType PointSetType;
-  typedef FixedImageType    ImageType;
 
   /** Sets up a timer to measure the initialization time and calls the
    * Superclass' implementation.
@@ -136,9 +127,9 @@ public:
 
   /** Function to read the corresponding points. */
   unsigned int ReadLandmarks(
-  const std::string & landmarkFileName,
-  typename PointSetType::Pointer & pointSet,
-  const typename ImageType::ConstPointer image );
+    const std::string & landmarkFileName,
+    typename PointSetPointer & pointSet,
+    const typename FixedImageType::ConstPointer image );
 
   /** Overwrite to silence warning. */
   void SelectNewSamples( void ) override{}
