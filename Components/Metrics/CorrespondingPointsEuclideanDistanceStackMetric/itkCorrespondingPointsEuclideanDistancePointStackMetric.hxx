@@ -349,7 +349,7 @@ CorrespondingPointsEuclideanDistancePointStackMetric< TFixedImage, TMovingImage 
 
     /** Add the coordinates of the fixed and moving image points to the matrices and
         set the last column to 1 (translation part of the transformation matrix). */
-    for( unsigned int c = 0; c < FixedImageDimension; ++c )
+    for( unsigned int c = 0; c < lastDim; ++c )
     {
       mFixed( d, c ) = pFixed[ c ];
       mMoving( d, c ) = pMoving[ c ];
